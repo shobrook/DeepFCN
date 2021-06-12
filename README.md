@@ -39,17 +39,17 @@ roi_masker = NiftiSpheresMasker(seeds=coords, radius=5.0)
 
 The next step is to convert the subjects into examples that can be submitted to a GNN. A single example is described by an instance of `deepfcn.data.Example`, which has following attributes:
 
-1. **`node_features`:** Node feature matrix with shape `[num_nodes, num_node_features]`, where `num_nodes == num_rois`
-2. **`fc_matrix`:** 3D functional connectivity matrix with shape `[num_nodes, num_nodes, num_fc_measures]`; represents a multi-edge FCN, where each edge corresponds to a different measure of functional connectivity
-3. **`y`:** Target to train against (e.g. `0` for autism, `1` for control)
+1. **`node_features` _(numpy.ndarray)_:** Node feature matrix with shape `[num_nodes, num_node_features]`, where `num_nodes == num_rois`
+2. **`fc_matrix` _(numpy.ndarray)_:** 3D functional connectivity matrix with shape `[num_nodes, num_nodes, num_fc_measures]`; represents a multi-edge FCN, where each edge corresponds to a different measure of functional connectivity
+3. **`y` _(int)_:** Target to train against (e.g. `0` for autism, `1` for control)
 
-To create examples, we'll use the `deepfcn.data.create_examples` function. This takes a set of fMRI scans (NiftiImage objects) as input and, for each scan, extracts the BOLD time series for each ROI, constructs a FCN, and extracts node features. It has the following parameters:
+To convert the ABIDE dataset into a set of examples, we'll use the `deepfcn.data.create_examples` function. This takes a set of fMRI scans (NiftiImage objects) as input and, for each scan, extracts the BOLD time series for each ROI, constructs a FCN, and extracts node features. It has the following parameters:
 
-1. **`images` _(list)_:** List/Iterator of NiftiImage objects, each corresponding to a subject's fMRI scan
+1. **`images` _(list)_:** List of NiftiImage objects, each corresponding to a subject's fMRI scan
 2. **`label` _(int)_:** Integer representing the target variable (i.e. `y`)
 3. **`roi_masker` _(NiftiMasker)_:** Mask to apply when extracting time series
-4. **`connectivity_measures` _(list, optional (default=["correlation"]))_:** List of connectivity measures to use; options are "correlation", "dtw", "covariance", "partial_correlation", "granger_causality"
-5. **`node_features` _(list, optional (default=["mean"]))_:** List of node features to extract; options are "variance", "mean", ... (TODO)
+4. **`fc_measures` _(list, optional (default=["correlation"]))_:** List of connectivity measures to use; options are listed in a table at the end of this section
+5. **`node_features` _(list, optional (default=["mean"]))_:** List of node features to extract; options are listed in a table at the end of this section
 6. **`n_jobs` _(int, optional (default=multiprocessing.cpu_count()))_:** Number of CPUs to split up the work across
 <!--7. **`bootstrap`**-->
 
@@ -60,7 +60,7 @@ from deepfcn.featurization import create_examples
 
 params = {
   "roi_masker": roi_masker,
-  "connectivity_measures": ["correlation", "dtw"],
+  "fc_measures": ["correlation", "dtw"],
   "node_features": ["mean", "variance", "entropy"]
 }
 
@@ -74,23 +74,54 @@ If you wanted to define your own `create_examples` function, `DeepFCN` provides 
 2. `deepfcn.featurization.extract_node_features(time_series, features)`: TODO
 3. `deepfcn.featurization.extract_fc_matrix(time_series, measures)`: TODO
 
+#### FC Measures
+
+| Feature           | Description                                                                                                                                                         |
+|-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| correlation       | Pearson correlation coefficient between the signals associated with two nodes/ROIs.                                                                                 |
+| covariance        | Covariance between the signals associated with two nodes.                                                                                                           |
+| dtw               | Speed-adjusted similarity between the two signals, calculated using the dynamic time warping algorithm.                                                             |
+| granger_causality | Probability that activity in one node predicts the other.                                                                                                           |
+| efficiency        | Multiplicative inverse of the shortest path distance between two nodes. Distance between two nodes is measured as the inverse of the absolute value of correlation. |
+
+#### Node Features
+
+| Feature                | Description                                                                                                                                                                              |
+|------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| entropy                | Complexity of the node's signal, based on approximate entropy of the time series.                                                                                                        |
+| fractal_dim            | Complexity of the node's signal, based on the fractal dimension of the time series.                                                                                                      |
+| lyap_r                 | Largest Lyapunov exponent, calculated by applying the Rosenstein et al. algorithm to the time series. Positive exponents indicate chaos and unpredictability.                            |
+| dfa                    | Measure of the "long-term memory" of a node's signal, computed using detrended fluctuation analysis.                                                                                     |
+| mean                   | Mean of the node's signal.                                                                                                                                                               |
+| median                 | Median of the node's signal.                                                                                                                                                             |
+| range                  | Range of the node's signal.                                                                                                                                                              |
+| std                    | Standard deviation of the node's signal.                                                                                                                                                 |
+| auto_corr              | Auto-correlation of the node's signal.                                                                                                                                                   |
+| auto_cov               | Auto-covariance of the node's signal.                                                                                                                                                    |
+| weighted_degree        | Weighted degree of the node, calculated by averaging the connectivity (correlation) of all its edges.                                                                                    |
+| clustering_coef        | Clustering coefficient for the node, where correlation is used as edge weight.                                                                                                           |
+| closeness_centrality   | Reciprocal of the average shortest path distance to the node over all n-1 reachable nodes. Distance between two nodes is measured as the reciprocal of their connectivity (correlation). |
+| betweenness_centrality | Sum of the fraction of all-pais shortest paths that pass through the node.                                                                                                               |
+
 ### Preprocessing the Dataset
 
 Now that we have a set of examples, the next step is to preprocess those examples before submitting them to a model. `DeepFCN` provides functions for cleaning graph-structured data, which we'll walk through below.
 
 #### Dropping Outliers
 
-Because there is no "right" way to compare FCNs, there's also no right way to detect outliers in our dataset. However, `DeepFCN` still provides a method for doing so, `deepfcn.preprocessing.drop_outliers`. It does the following:
-
-1. Creates a vector representation of each example by averaging the node features and concatenating that with the mean of the edge features
-2. Calculates the Mahalanobis distance between each vector and the other example vectors
-3. Uses a Chi-Squared distribution to remove examples with distances outside a cutoff threshold (e.g. p < 0.05)
+Because there is no "right" way to compare FCNs, there's also no right way to detect outliers in our dataset. However, `DeepFCN` still provides a technique for doing so, `deepfcn.preprocessing.drop_outliers`:
 
 ```python
 from deepfcn.preprocessing import drop_outliers
 
 drop_outliers(examples, cutoff=0.05)
 ```
+
+This function does the following:
+
+1. Creates a vector representation of each example by averaging the node features and concatenating that with the mean of the edge features
+2. Calculates the Mahalanobis distance between each vector and the other example vectors
+3. Uses a Chi-Squared distribution to remove examples with distances outside a cutoff threshold (e.g. p < 0.05)
 
 #### Dropping Edges
 
@@ -110,7 +141,7 @@ Note that since some functional connectivity measures, such as correlation, are 
 
 ### Preparing the GNN
 
-Now that we've prepared our dataset, the next step is to create a GNN. This only takes a line of code with `DeepFCN`:
+Now that we've prepared our dataset, the next step is to create a GNN. This only takes a line of code to do:
 
 ```python
 from deepfcn.gnn import create_gnn
@@ -132,34 +163,26 @@ By default, this function will autoconfigure the GNN based on the number of node
 
 These are all parameters in the `deepfcn.gnn.create_gnn` function.
 
-### Training the GNN
+<!--TODO: Hypersearch-->
+
+### Training and Testing the GNN
 
 `DeepFCN` offers a predefined and configurable training loop, `deepfcn.gnn.cross_validate`, to save you the trouble of creating your own. It has the following parameters:
 
-1. **`examples` _(list)_:** List of example objects (your dataset)
-2. **`k` _(int)_:** Number of folds to create for k-fold cross-validation
-3. **`early_stopping_step` _(int, optional (default=0))_:** Interval (in epochs) by which validation error is checked and used for [early stopping](https://en.wikipedia.org/wiki/Early_stopping#Validation-based_early_stopping); if `0`, no validation set is used to halt training
+1. **`examples` _(list)_:** List of example objects (i.e. your dataset)
+2. **`gnn` _(nn.Module)_:** PyTorch module representing the GNN to train and test (e.g. the output of `create_gnn`)
+3. **`k` _(int)_:** Number of folds to create for k-fold cross-validation
+<!--4. **`early_stopping_step` _(int, optional (default=0))_:** Interval (in epochs) by which validation error is checked and used for [early stopping](https://en.wikipedia.org/wiki/Early_stopping#Validation-based_early_stopping); if `0`, no validation set is used to halt training-->
 4. **`lr` _(float, optional (default=1e-3))_:** Learning rate
 5. **`epochs` _(int, optional (default=100))_:** Number of epochs to train for
-
-This function returns ...
+6. **`verbose` _(bool)_:** If `True`, training logs will be written to `stdout`
 
 ```python
 from deepfcn.gnn import cross_validate
 
-results = cross_validate(examples, k=5, epochs=200)
+results = cross_validate(examples, gnn, k=5, epochs=200)
 ```
 
-Because `gnn` is just a PyTorch module, you can also create your own training loop. `deepfcn.data.Example` objects have a `.to_data_obj()` method that converts the example into an object usable by PyTorch Geometric.
+This function returns a list of dictionaries, each holding the cross-validation results for an epoch. The dictionaries have the following keys: `"train_accuracy"`, `"test_accuracy"`, `"test_precision"`, `"test_recall"`, `"loss"`. Each key holds a list of `k` values, where each value corresponds to a fold used in cross-validation.
 
-### Analyzing/Visualizing Results
-
-1. Training/Testing graphs
-2. Node/Edge weights
-
-## Example
-
-Whole thing put into one code block.
-
-```python
-```
+Because `gnn` is just a PyTorch module, you can also create your own training loop. Doing this requires calling the `to_data_obj()` instance method on your `deepfcn.data.Example` objects to convert them into objects consumable by PyTorch Geometric modules.
