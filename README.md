@@ -162,7 +162,9 @@ Because `gnn` is just a PyTorch module, you can also create your own training lo
 
 TODO
 
-## FC Measures
+## Reference
+
+### FC Measures
 
 | Feature           | Description                                                                                                                                                         |
 |-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -172,7 +174,7 @@ TODO
 | granger_causality | Probability that activity in one node predicts the other.                                                                                                           |
 | efficiency        | Multiplicative inverse of the shortest path distance between two nodes. Distance between two nodes is measured as the inverse of the absolute value of correlation. |
 
-## Node Features
+### Node Features
 
 | Feature                | Description                                                                                                                                                                              |
 |------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
