@@ -1,6 +1,6 @@
 # DeepFCN
 
-`DeepFCN` is a deep learning tool for predicting individual differences (e.g. classifying subjects with vs. without autism, high vs. low IQ, etc.) from [functional connectivity networks (FCNs)](https://www.sciencedirect.com/topics/medicine-and-dentistry/functional-connectivity).
+`DeepFCN` is a deep learning tool for predicting individual differences (e.g. classifying subjects with vs. without autism) from [functional connectivity networks (FCNs)](https://www.sciencedirect.com/topics/medicine-and-dentistry/functional-connectivity).
 
 It employs a Graph Neural Network (GNN) as a predictive model and offers control over every step in the machine learning pipeline, from creating FCNs from fMRI images to extracting features to training and testing.
 
@@ -16,7 +16,7 @@ $ pip install deepfcn
 
 ## Introduction by Example
 
-We'll introduce the features of `DeepFCN` by applying it to the Autism Brain Imaging Data Exchange (ABIDE) dataset. Our goal is to build and train a model to predict whether a subject is diagnosed with autism.<!--, and to identify functional biomarkers of the disorder.-->
+We'll introduce the features of `DeepFCN` by applying it to the Autism Brain Imaging Data Exchange (ABIDE) dataset. Our goal is to train a model to predict whether a subject is diagnosed with autism.<!--, and to identify functional biomarkers of the disorder.-->
 
 ### Loading the Dataset
 
@@ -48,7 +48,7 @@ To convert the ABIDE dataset into a set of examples, we'll use the `deepfcn.data
 1. **`images` _(list)_:** List of NiftiImage objects, each corresponding to a subject's fMRI scan
 2. **`label` _(int)_:** Integer representing the target variable (i.e. `y`)
 3. **`roi_masker` _(NiftiMasker)_:** Mask to apply when extracting time series
-4. **`fc_measures` _(list, optional (default=["correlation"]))_:** List of connectivity measures to use; options are listed in a table at the end of this README
+4. **`fc_features` _(list, optional (default=["correlation"]))_:** List of connectivity measures to use; options are listed in a table at the end of this README
 5. **`node_features` _(list, optional (default=["mean"]))_:** List of node features to extract; options are listed in a table at the end of this README
 6. **`n_jobs` _(int, optional (default=multiprocessing.cpu_count()))_:** Number of CPUs to split up the work across
 <!--7. **`bootstrap`**-->
@@ -56,7 +56,7 @@ To convert the ABIDE dataset into a set of examples, we'll use the `deepfcn.data
 In our example, we'll use `"correlation"` and `"dtw"` (Dynamic Time Warping) as our connectivity measures, and `"mean"`, `"variance"`, and `"entropy"` as our node features:
 
 ```python
-from deepfcn.featurization import create_examples
+from deepfcn.data import create_examples
 
 params = {
   "roi_masker": roi_masker,
@@ -70,9 +70,9 @@ examples += create_examples(control_subjects, 1, **params)
 
 If you wanted to define your own `create_examples` function, `DeepFCN` provides some helpers:
 
-1. `deepfcn.featurization.extract_signals(niimg, roi_masker)`: Extracts the BOLD time series for each ROI
-2. `deepfcn.featurization.extract_fc_matrix(time_series, measures)`: Creates a FCN from time series data
-3. `deepfcn.featurization.extract_node_features(time_series, features)`: Extracts node/ROI features from time series data
+1. `deepfcn.data.extract_signals(niimg, roi_masker)`: Extracts the BOLD time series for each ROI
+2. `deepfcn.data.extract_fc_matrix(signals, features)`: Creates a FCN from time series data
+3. `deepfcn.data.extract_node_features(signals, features)`: Extracts node/ROI features from time series data
 
 ### Preprocessing the Dataset
 
@@ -80,10 +80,10 @@ Now that we have a set of examples, the next step is to preprocess those example
 
 #### Dropping Outliers
 
-Because there is no "right" way to compare FCNs, there's also no right way to detect outliers in our dataset. However, `DeepFCN` still provides a technique for doing so, `deepfcn.preprocessing.drop_outliers`:
+Because there is no "right" way to compare FCNs, there's also no right way to detect outliers in our dataset. However, `DeepFCN` still provides a technique for doing so, `deepfcn.data.drop_outliers`:
 
 ```python
-from deepfcn.preprocessing import drop_outliers
+from deepfcn.data import drop_outliers
 
 drop_outliers(examples, cutoff=0.05)
 ```
@@ -96,10 +96,10 @@ This function does the following:
 
 #### Dropping Edges
 
-Within a FCN, there may be weak edges that represent noise rather than connectivity, and dropping them can improve performance of the GNN. `deepfcn.preprocessing.drop_edges` allows you to identify such edges and drop the ones below a connectivity threshold. If there are multiple connectivity measures associated with an edge, then only the first one is compared against the threshold. In our example, we'll drop the weakest **10%** of edges from each example based on their correlation:
+Within a FCN, there may be weak edges that represent noise rather than connectivity, and dropping them can improve performance of the GNN. `deepfcn.data.drop_edges` allows you to identify such edges and drop the ones below a connectivity threshold. If there are multiple connectivity measures associated with an edge, then only the first one is compared against the threshold. In our example, we'll drop the weakest **10%** of edges from each example based on their correlation:
 
 ```python
-from deepfcn.preprocessing import drop_edges
+from deepfcn.data import drop_edges
 
 drop_edges(examples, cutoff=0.10)
 ```
@@ -169,7 +169,6 @@ TODO
 | Feature           | Description                                                                                                                                                         |
 |-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | correlation       | Pearson correlation coefficient between the signals associated with two nodes/ROIs.                                                                                 |
-| covariance        | Covariance between the signals associated with two nodes.                                                                                                           |
 | dtw               | Speed-adjusted similarity between the two signals, calculated using the dynamic time warping algorithm.                                                             |
 | granger_causality | Probability that activity in one node predicts the other.                                                                                                           |
 | efficiency        | Multiplicative inverse of the shortest path distance between two nodes. Distance between two nodes is measured as the inverse of the absolute value of correlation. |
