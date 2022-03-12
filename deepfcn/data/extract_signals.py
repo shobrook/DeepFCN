@@ -1,4 +1,10 @@
+# Third Party
 from nilearn import image
+
+
+######
+# MAIN
+######
 
 
 def extract_signals(niimg, roi_masker):
@@ -19,6 +25,7 @@ def extract_signals(niimg, roi_masker):
     numpy.ndarray
         Array of BOLD signals; shape = [num_rois, time_series_len]
     """
+
     niimg = image.load_img(niimg) if isinstance(niimg, str) else niimg
     confounds = image.high_variance_confounds(niimg)
     time_series = roi_masker.fit_transform(niimg, confounds=confounds)
