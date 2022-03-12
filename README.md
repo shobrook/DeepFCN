@@ -1,14 +1,18 @@
 # DeepFCN
 
-`DeepFCN` is a deep learning tool for predicting individual differences (e.g. classifying subjects with vs. without autism) from [functional connectivity networks (FCNs)](https://www.sciencedirect.com/topics/medicine-and-dentistry/functional-connectivity).
+DeepFCN is a deep learning tool for predicting individual differences (e.g. classifying subjects with vs. without autism) from [functional connectivity networks (FCNs)](https://www.sciencedirect.com/topics/medicine-and-dentistry/functional-connectivity).
 
-It employs a Graph Neural Network (GNN) as a predictive model and offers control over every step in the machine learning pipeline, from creating FCNs from fMRI images to extracting features to training and testing.
+It employs a Graph Neural Network (GNN) as a predictive model and offers control over every step in the machine learning pipeline, including:
+1. Extracting FCNs and features from fMRI data
+2. Preprocessing the FCNs (e.g. dropping outliers, normalization)
+3. Designing the GNN
+4. Training and testing the GNN
 
 <!--Pipeline diagram-->
 
 ## Installation
 
-You can install `DeepFCN` from PyPi:
+You can install DeepFCN from PyPi:
 
 ```bash
 $ pip install deepfcn
@@ -16,11 +20,11 @@ $ pip install deepfcn
 
 ## Introduction by Example
 
-We'll introduce the features of `DeepFCN` by applying it to the Autism Brain Imaging Data Exchange (ABIDE) dataset. Our goal is to train a model to predict whether a subject is diagnosed with autism.<!--, and to identify functional biomarkers of the disorder.-->
+We'll introduce the features of DeepFCN by applying it to the [Autism Brain Imaging Data Exchange (ABIDE) dataset](https://fcon_1000.projects.nitrc.org/indi/abide/). Our goal is to train a model to predict whether a subject is diagnosed with autism.<!--, and to identify functional biomarkers of the disorder.-->
 
 ### Loading the Dataset
 
-We'll use the `nilearn` library to load the ABIDE dataset and a cortical brain atlas, which we'll use to parcellate the brain into regions of interest (ROIs):
+We'll use the `nilearn` library to load the ABIDE dataset and a cortical [brain atlas](https://en.wikipedia.org/wiki/Brain_atlas), which we'll use to parcellate the brain into regions of interest (ROIs):
 
 ```python
 import numpy as np
@@ -40,7 +44,7 @@ roi_masker = NiftiSpheresMasker(seeds=coords, radius=5.0)
 The next step is to convert the subjects into data examples that can be submitted to a GNN. A single example is described by an instance of `deepfcn.data.Example`, which has following attributes:
 
 1. **`node_features` _(numpy.ndarray)_:** Node feature matrix with shape `[num_nodes, num_node_features]`, where `num_nodes == num_rois`
-2. **`fc_matrix` _(numpy.ndarray)_:** 3D functional connectivity matrix with shape `[num_nodes, num_nodes, num_fc_measures]`; represents a multi-edge FCN, where each edge corresponds to a different measure of functional connectivity
+2. **`fc_matrix` _(numpy.ndarray)_:** 3D functional connectivity matrix with shape `[num_nodes, num_nodes, num_fc_measures]`; represents a multi-edge FCN, where each edge corresponds to a different measure of functional connectivity (e.g. correlation, covariance)
 3. **`y` _(int)_:** Target to train against (e.g. `0` for autism, `1` for control)
 
 To convert the ABIDE dataset into a set of examples, we'll use the `deepfcn.data.create_examples` function. This takes a set of fMRI scans (NiftiImage objects) as input and, for each scan, extracts the BOLD time series for each ROI, constructs an FCN, and extracts features to build an `Example` object. The method has the following parameters:
@@ -48,8 +52,8 @@ To convert the ABIDE dataset into a set of examples, we'll use the `deepfcn.data
 1. **`images` _(list)_:** List of NiftiImage objects, each corresponding to a subject's fMRI scan
 2. **`label` _(int)_:** Integer representing the target variable (i.e. `y`)
 3. **`roi_masker` _(NiftiMasker)_:** Mask to apply when extracting time series
-4. **`fc_features` _(list, optional (default=["correlation"]))_:** List of connectivity measures to use; options are listed in a table at the end of this README
-5. **`node_features` _(list, optional (default=["mean"]))_:** List of node features to extract; options are listed in a table at the end of this README
+4. **`fc_features` _(list, optional (default=["correlation"]))_:** List of connectivity measures to use; options are listed in [this table](#fc-features)
+5. **`node_features` _(list, optional (default=["mean"]))_:** List of node features to extract; options are listed in [this table](#node-features)
 6. **`n_jobs` _(int, optional (default=multiprocessing.cpu_count()))_:** Number of CPUs to split up the work across
 <!--7. **`bootstrap`**-->
 
@@ -58,17 +62,16 @@ In our example, we'll use `"correlation"` and `"dtw"` (Dynamic Time Warping) as 
 ```python
 from deepfcn.data import create_examples
 
-params = {
-  "roi_masker": roi_masker,
-  "fc_measures": ["correlation", "dtw"],
-  "node_features": ["mean", "variance", "entropy"]
-}
+fc_features = ["correlation", "dtw"]
+node_features = ["mean", "variance", "entropy"]
 
-examples = create_examples(autism_subjects, 0, **params)
-examples += create_examples(control_subjects, 1, **params)
+examples = create_examples(autism_subjects, label=0, roi_masker=roi_masker,
+                           fc_features=fc_features, node_features=node_features)
+examples += create_examples(control_subjects, label=1, roi_masker=roi_masker,
+                           fc_features=fc_features, node_features=node_features)
 ```
 
-If you wanted to define your own `create_examples` function, `DeepFCN` provides some helpers:
+If you wanted to define your own `create_examples` function, DeepFCN provides some helpers:
 
 1. `deepfcn.data.extract_signals(niimg, roi_masker)`: Extracts the BOLD time series for each ROI
 2. `deepfcn.data.extract_fc_matrix(signals, features)`: Creates a FCN from time series data
@@ -76,11 +79,11 @@ If you wanted to define your own `create_examples` function, `DeepFCN` provides 
 
 ### Preprocessing the Dataset
 
-Now that we have a set of examples, the next step is to preprocess those examples before submitting them to a model. `DeepFCN` provides functions for cleaning graph-structured data, which we'll walk through below.
+Now that we have a set of examples, the next step is to preprocess those examples before submitting them to a model. DeepFCN provides functions for cleaning graph-structured data, which we'll walk through below.
 
 #### Dropping Outliers
 
-Because there is no "right" way to compare FCNs, there's also no right way to detect outliers in our dataset. However, `DeepFCN` still provides a technique for doing so, `deepfcn.data.drop_outliers`:
+Because there's no "right" way to compare FCNs, there's also no right way to detect outliers in our dataset. However, DeepFCN still provides a technique for doing so, `deepfcn.data.drop_outliers`:
 
 ```python
 from deepfcn.data import drop_outliers
@@ -91,8 +94,8 @@ drop_outliers(examples, cutoff=0.05)
 This function does the following:
 
 1. Creates a vector representation of each example by averaging the node features and concatenating that with the mean of the edge features
-2. Calculates the Mahalanobis distance between each vector and the other example vectors
-3. Uses a Chi-Squared distribution to remove examples with distances outside a cutoff threshold (e.g. p < 0.05)
+2. Calculates the [Mahalanobis distance](https://en.wikipedia.org/wiki/Mahalanobis_distance) between each vector and the other example vectors
+3. Uses a [Chi-Squared distribution](https://en.wikipedia.org/wiki/Chi-squared_distribution) to remove examples with distances outside a cutoff threshold (e.g. p < 0.05)
 
 #### Dropping Edges
 
@@ -106,13 +109,15 @@ drop_edges(examples, cutoff=0.10)
 
 Note that since some functional connectivity measures, such as correlation, are such that negative values are just as meaningful as positive values, only the absolute value is used –– e.g. a connectivity of `-0.5` is considered stronger than `0.3`.
 
+<!--TODO: Add a feature_index parameter that lets you specify which feature to use as a connectivity measure-->
+
 <!--#### Normalizing Features-->
 
 <!--#### Class Balancing-->
 
 ### Preparing the GNN
 
-Now that we've prepared our dataset, the next step is to create a GNN. This only takes a line of code to do:
+Now that we've prepared our dataset, the next step is to create a GNN. This only takes one line of code to do:
 
 ```python
 from deepfcn.gnn import create_gnn
@@ -120,7 +125,7 @@ from deepfcn.gnn import create_gnn
 gnn = create_gnn(examples)
 ```
 
-By default, this function will autoconfigure the GNN based on the number of node and edge features in the example set. It returns a PyTorch `nn.Module` object that leverages the `NNConv` and `global_mean_pool` functions from PyTorch Geometric, a graph classification library. If you want more control over how the GNN is configured, `DeepFCN` lets you tune various hyperparameters, listed below:
+By default, this function will autoconfigure the GNN parameters based on the number of node and edge features in the example set. It returns a PyTorch `nn.Module` object that leverages the `NNConv` and `global_mean_pool` functions from [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/), a graph classification library. If you want more control over how the GNN is configured, DeepFCN lets you tune various hyperparameters, listed below:
 
 1. **`num_node_features` _(int)_:** Number of node features in each input example
 2. **`num_edge_features` _(int)_:** Number of edge features in each input example
@@ -128,17 +133,17 @@ By default, this function will autoconfigure the GNN based on the number of node
 4. **`use_pooling` _(bool)_:** Boolean indicating whether or not to use top k pooling after each layer in the GNN
 5. **`dropout_prob` _(float)_:** Dropout probability to be applied to each GNN layer
 6. **`global_pooling_mode` _(str)_:** Type of global pooling to use; options are `"mean"`, for `global_mean_pooling`, and `"attention"`, for `GlobalAttention`
-7. **`conv_activation_func` _(nn.Module)_:** TODO
+7. **`conv_activation_func` _(nn.Module)_:** Activation function to apply to the output of each graph convolution; must be a [PyTorch activation function](https://pytorch.org/docs/stable/nn.html#non-linear-activations-weighted-sum-nonlinearity)
 8. **`edge_nn_kwargs` _(dict)_:** TODO
 9. **`output_nn_kwargs` _(dict)_:** TODO
 
-These are all parameters in the `deepfcn.gnn.create_gnn` function.
+These are all _parameters_ in the `deepfcn.gnn.create_gnn` function.
 
 <!--TODO: Hypersearch-->
 
 ### Training and Testing the GNN
 
-`DeepFCN` offers a predefined and configurable training loop, `deepfcn.gnn.cross_validate`, to save you the trouble of creating your own. It has the following parameters:
+DeepFCN offers a predefined and configurable training loop, `deepfcn.gnn.cross_validate`, to save you the trouble of creating your own. It has the following parameters:
 
 1. **`examples` _(list)_:** List of example objects (i.e. your dataset)
 2. **`gnn` _(nn.Module)_:** PyTorch module representing the GNN to train and test (e.g. the output of `create_gnn`)
@@ -156,7 +161,7 @@ results = cross_validate(examples, gnn, k=5, epochs=200)
 
 This function returns a list of dictionaries, each holding the cross-validation results for an epoch. The dictionaries have the following keys: `"train_accuracy"`, `"test_accuracy"`, `"test_precision"`, `"test_recall"`, `"loss"`. Each key holds a list of `k` values, where each value corresponds to a fold used in cross-validation.
 
-Because `gnn` is just a PyTorch module, you can also create your own training loop. Doing this will require calling the `to_data_obj()` instance method on your `deepfcn.data.Example` objects to convert them into objects consumable by PyTorch Geometric modules.
+Because `gnn` is just a PyTorch module, you can also create your own training loop. Just note that doing this will require calling the `to_data_obj()` instance method on your `deepfcn.data.Example` objects to convert them into objects consumable by PyTorch Geometric modules.
 
 ### Visualizing Results
 
@@ -164,7 +169,7 @@ TODO
 
 ## Reference
 
-### FC Measures
+### FC Features
 
 | Feature           | Description                                                                                                                                                         |
 |-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
