@@ -1,5 +1,8 @@
+# Third Party
+import numpy as np
 from nilearn.connectome import ConnectivityMeasure
 from pyts.metrics import dtw as _extract_dtw
+from statsmodels.tsa.stattools import grangercausalitytests
 
 FC_FEATURES = ["correlation", "dtw", "granger_causality"]
 
@@ -44,29 +47,36 @@ def _generate_matrix_indices(num_rois, num_features):
 ######
 
 
-def extract_fc_matrix(signals, features=["correlation"]):
+def extract_fcn(signals, feature_names=["correlation"]):
     """
+    Extracts a functional connectivity network (FCN) from BOLD signals. The FCN
+
     Parameters
     ----------
-    signals : np.array
-        2D array of BOLD signals corresponding to ROIs
-        (shape=[num_rois, timesteps])
-    measures : list
-        list of names of FC measures to extract
+    signals : np.ndarray
+        Array of BOLD signals; shape = [num_rois, time_series_len]
+    feature_names : list
+        Names of functional connectivity features to extract
+
+    Returns
+    -------
+    numpy.ndarray
+        FC matrix with shape [num_nodes, num_nodes, num_features]; multi-edge
+        adjacency matrix representation of a FCN
     """
 
-    num_rois, num_features = signals.shape[0], len(features)
+    num_rois, num_features = len(signals), len(feature_names)
     fc_matrix = np.empty([num_rois, num_rois, num_features])
 
     for i, j, k in _generate_matrix_indices(num_rois, num_features):
         signal_i, signal_j = signals[i], signals[j]
-        fc_measure = features[k]
+        feature_name = feature_names[k]
 
-        if fc_measure == "correlation":
+        if feature_name == "correlation":
             feature = _extract_correlation(signal_i, signal_j)
-        elif fc_measure == "dtw":
+        elif feature_name == "dtw":
             feature = _extract_dtw(signal_i, signal_j)
-        elif fc_measure == "granger_causality":
+        elif feature_name == "granger_causality":
             feature = _extract_granger_causality(signal_i, signal_j)
 
         fc_matrix[i][j][k] = feature
