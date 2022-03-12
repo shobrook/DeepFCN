@@ -10,6 +10,26 @@ It employs a Graph Neural Network (GNN) as a predictive model and offers control
 
 <!--Pipeline diagram-->
 
+<!--```python
+from deepfcn.data import create_examples, drop_outliers, drop_edges
+from deepfcn.gnn import create_gnn, cross_validate
+
+def load_dataset():
+  # You implement this
+  pass
+
+test_subjects, control_subjects, roi_masker = load_dataset()
+
+dataset = create_examples(test_subjects, label=0, roi_masker=roi_masker)
+dataset += create_examples(control_subjects, label=1, roi_masker=roi_masker)
+
+drop_outliers(dataset, cutoff=0.05)
+drop_edges(dataset, cutoff=0.10)
+
+gnn = create_gnn(dataset)
+results = cross_validate(dataset, gnn, k=5, epochs=200)
+```-->
+
 ## Installation
 
 You can install DeepFCN from PyPi:
