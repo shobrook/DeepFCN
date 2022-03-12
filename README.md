@@ -64,7 +64,7 @@ roi_masker = NiftiSpheresMasker(seeds=coords, radius=5.0)
 The next step is to convert the subjects into data examples that can be submitted to a GNN. A single example is described by an instance of `deepfcn.data.Example`, which has following attributes:
 
 1. **`node_features` _(numpy.ndarray)_:** Node feature matrix with shape `[num_nodes, num_node_features]`, where `num_nodes == num_rois`
-2. **`fc_matrix` _(numpy.ndarray)_:** 3D functional connectivity matrix with shape `[num_nodes, num_nodes, num_fc_measures]`; represents a multi-edge FCN, where each edge corresponds to a different measure of functional connectivity (e.g. correlation, covariance)
+2. **`fc_matrix` _(numpy.ndarray)_:** 3D functional connectivity matrix with shape `[num_nodes, num_nodes, num_fc_features]`; represents a multi-edge FCN, where each edge corresponds to a different measure of functional connectivity (e.g. correlation, covariance)
 3. **`y` _(int)_:** Target to train against (e.g. `0` for autism, `1` for control)
 
 To convert the ABIDE dataset into a set of examples, we'll use the `deepfcn.data.create_examples` function. This takes a set of fMRI scans (NiftiImage objects) as input and, for each scan, extracts the BOLD time series for each ROI, constructs an FCN, and extracts features to build an `Example` object. The method has the following parameters:
@@ -94,8 +94,8 @@ examples += create_examples(control_subjects, label=1, roi_masker=roi_masker,
 If you wanted to define your own `create_examples` function, DeepFCN provides some helpers:
 
 1. `deepfcn.data.extract_signals(niimg, roi_masker)`: Extracts the BOLD time series for each ROI
-2. `deepfcn.data.extract_fc_matrix(signals, features)`: Creates a FCN from time series data
-3. `deepfcn.data.extract_node_features(signals, features)`: Extracts node/ROI features from time series data
+2. `deepfcn.data.extract_fcn(signals, feature_names)`: Creates a FCN from time series data
+3. `deepfcn.data.extract_node_features(signals, feature_names)`: Extracts node/ROI features from time series data
 
 ### Preprocessing the Dataset
 
