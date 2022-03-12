@@ -8,7 +8,7 @@ It employs a Graph Neural Network (GNN) as a predictive model and offers control
 3. Designing the GNN
 4. Training and testing the GNN
 
-<!--Pipeline diagram-->
+<img src="pipeline.png" />
 
 <!--```python
 from deepfcn.data import create_examples, drop_outliers, drop_edges
