@@ -2,16 +2,12 @@
 
 DeepFCN is a deep learning tool for predicting individual differences (e.g. classifying subjects with vs. without autism) from [functional connectivity networks (FCNs)](https://www.sciencedirect.com/topics/medicine-and-dentistry/functional-connectivity).
 
-It employs a Graph Neural Network (GNN) as a predictive model and offers control over every step in the machine learning pipeline, including:
-1. Extracting FCNs and features from fMRI data
-2. Preprocessing the FCNs (e.g. dropping outliers, normalization)
-3. Designing the GNN
-4. Training and testing the GNN
+It employs a Graph Neural Network (GNN) as a predictive model and offers control over every step in the deep learning pipeline, from feature extraction to designing the GNN.
 
 <img src="pipeline.png" />
 
 <!--```python
-from deepfcn.data import create_examples, drop_outliers, drop_edges
+from deepfcn.data import create_examples, drop_outliers, drop_weak_edges
 from deepfcn.gnn import create_gnn, cross_validate
 
 def load_dataset():
@@ -23,8 +19,8 @@ test_subjects, control_subjects, roi_masker = load_dataset()
 dataset = create_examples(test_subjects, label=0, roi_masker=roi_masker)
 dataset += create_examples(control_subjects, label=1, roi_masker=roi_masker)
 
+drop_weak_edges(dataset, cutoff=0.10)
 drop_outliers(dataset, cutoff=0.05)
-drop_edges(dataset, cutoff=0.10)
 
 gnn = create_gnn(dataset)
 results = cross_validate(dataset, gnn, k=5, epochs=200)
@@ -119,12 +115,12 @@ This function does the following:
 
 #### Dropping Edges
 
-Within a FCN, there may be weak edges that represent noise rather than connectivity, and dropping them can improve performance of the GNN. `deepfcn.data.drop_edges` allows you to identify such edges and drop the ones below a connectivity threshold. If there are multiple connectivity measures associated with an edge, then only the first one is compared against the threshold. In our example, we'll drop the weakest **10%** of edges from each example based on their correlation:
+Within a FCN, there may be weak edges that represent noise rather than connectivity, and dropping them can improve performance of the GNN. `deepfcn.data.drop_weak_edges` allows you to identify such edges and drop the ones below a connectivity threshold. If there are multiple connectivity measures associated with an edge, then only the first one is compared against the threshold. In our example, we'll drop the weakest **10%** of edges from each example based on their correlation:
 
 ```python
-from deepfcn.data import drop_edges
+from deepfcn.data import drop_weak_edges
 
-drop_edges(examples, cutoff=0.10)
+drop_weak_edges(examples, cutoff=0.10)
 ```
 
 Note that since some functional connectivity measures, such as correlation, are such that negative values are just as meaningful as positive values, only the absolute value is used –– e.g. a connectivity of `-0.5` is considered stronger than `0.3`.
@@ -168,10 +164,10 @@ DeepFCN offers a predefined and configurable training loop, `deepfcn.gnn.cross_v
 1. **`examples` _(list)_:** List of example objects (i.e. your dataset)
 2. **`gnn` _(nn.Module)_:** PyTorch module representing the GNN to train and test (e.g. the output of `create_gnn`)
 3. **`k` _(int)_:** Number of folds to create for k-fold cross-validation
-<!--4. **`early_stopping_step` _(int, optional (default=0))_:** Interval (in epochs) by which validation error is checked and used for [early stopping](https://en.wikipedia.org/wiki/Early_stopping#Validation-based_early_stopping); if `0`, no validation set is used to halt training-->
 4. **`lr` _(float, optional (default=1e-3))_:** Learning rate
 5. **`epochs` _(int, optional (default=100))_:** Number of epochs to train for
 6. **`verbose` _(bool)_:** If `True`, training logs will be written to `stdout`
+<!--4. **`early_stopping_step` _(int, optional (default=0))_:** Interval (in epochs) by which validation error is checked and used for [early stopping](https://en.wikipedia.org/wiki/Early_stopping#Validation-based_early_stopping); if `0`, no validation set is used to halt training-->
 
 ```python
 from deepfcn.gnn import cross_validate
@@ -181,7 +177,7 @@ results = cross_validate(examples, gnn, k=5, epochs=200)
 
 This function returns a list of dictionaries, each holding the cross-validation results for an epoch. The dictionaries have the following keys: `"train_accuracy"`, `"test_accuracy"`, `"test_precision"`, `"test_recall"`, `"loss"`. Each key holds a list of `k` values, where each value corresponds to a fold used in cross-validation.
 
-Because `gnn` is just a PyTorch module, you can also create your own training loop. Just note that doing this will require calling the `to_data_obj()` instance method on your `deepfcn.data.Example` objects to convert them into objects consumable by PyTorch Geometric modules.
+Because `gnn` is just a PyTorch module, you can also create your own training loop. Just note that doing so will require calling the `to_data_obj()` instance method on your `deepfcn.data.Example` objects to convert them into objects consumable by PyTorch Geometric modules.
 
 ### Visualizing Results
 
