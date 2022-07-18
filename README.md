@@ -2,7 +2,7 @@
 
 DeepFCN is a deep learning tool for predicting individual differences (e.g. classifying subjects with vs. without autism) from [functional connectivity networks (FCNs)](https://www.sciencedirect.com/topics/medicine-and-dentistry/functional-connectivity).
 
-It employs a Graph Neural Network (GNN) as a predictive model and offers control over every step in the deep learning pipeline, from feature extraction to designing the GNN.
+It employs a Graph Neural Network (GNN) as a predictive model and offers control over every step in the deep learning pipeline, from feature extraction to designing and training the GNN.
 
 <img src="pipeline.png" />
 
@@ -72,8 +72,9 @@ To convert the ABIDE dataset into a set of examples, we'll use the `deepfcn.data
 5. **`node_features` _(list, optional (default=["mean"]))_:** List of node features to extract; options are listed in [this table](#node-features)
 6. **`n_jobs` _(int, optional (default=multiprocessing.cpu_count()))_:** Number of CPUs to split up the work across
 <!--7. **`bootstrap`**-->
+<!--TODO: Implement subject-level predictions-->
 
-In our example, we'll use `"correlation"` and `"dtw"` (Dynamic Time Warping) as our connectivity measures, and `"mean"`, `"variance"`, and `"entropy"` as our node features:
+In our example, we'll use `"correlation"` and `"dtw"` ([Dynamic Time Warping](https://en.wikipedia.org/wiki/Dynamic_time_warping)) as our connectivity measures, and `"mean"`, `"variance"`, and `"entropy"` as our node features:
 
 ```python
 from deepfcn.data import create_examples
@@ -163,10 +164,10 @@ DeepFCN offers a predefined and configurable training loop, `deepfcn.gnn.cross_v
 
 1. **`examples` _(list)_:** List of example objects (i.e. your dataset)
 2. **`gnn` _(nn.Module)_:** PyTorch module representing the GNN to train and test (e.g. the output of `create_gnn`)
-3. **`k` _(int)_:** Number of folds to create for k-fold cross-validation
+3. **`k` _(int, optional (default=1e-3))_:** Number of folds to create for k-fold cross-validation
 4. **`lr` _(float, optional (default=1e-3))_:** Learning rate
 5. **`epochs` _(int, optional (default=100))_:** Number of epochs to train for
-6. **`verbose` _(bool)_:** If `True`, training logs will be written to `stdout`
+6. **`verbose` _(bool, optional (default=True))_:** If `True`, training logs will be written to `stdout`
 <!--4. **`early_stopping_step` _(int, optional (default=0))_:** Interval (in epochs) by which validation error is checked and used for [early stopping](https://en.wikipedia.org/wiki/Early_stopping#Validation-based_early_stopping); if `0`, no validation set is used to halt training-->
 
 ```python
@@ -212,3 +213,7 @@ TODO
 | clustering_coef        | Clustering coefficient for the node, where correlation is used as edge weight.                                                                                                           |
 | closeness_centrality   | Reciprocal of the average shortest path distance to the node over all n-1 reachable nodes. Distance between two nodes is measured as the reciprocal of their connectivity (correlation). |
 | betweenness_centrality | Sum of the fraction of all-pais shortest paths that pass through the node.                                                                                                               |
+
+# Authors
+
+`DeepFCN` was created by Jonathan Shobrook and [Paul C. Bogdan](https://github.com/paulcbogdan/) as part of our research in the [Dolcos Lab](https://dolcoslab.beckman.illinois.edu/) at the Beckman Institute for Advanced Science and Technology.
