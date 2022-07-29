@@ -2,7 +2,7 @@
 
 DeepFCN is a deep learning tool for predicting individual differences (e.g. classifying subjects with vs. without autism) from [functional connectivity networks (FCNs)](https://www.sciencedirect.com/topics/medicine-and-dentistry/functional-connectivity).
 
-It employs a Graph Neural Network (GNN) as a predictive model and offers control over every step in the deep learning pipeline, from feature extraction to designing and training the GNN.
+It employs a Graph Neural Network (GNN) as a predictive model and offers control over every step in the deep learning pipeline, from feature extraction to designing and training the GNN. All you need is a labeled fMRI dataset to get started.
 
 <img src="pipeline.png" />
 
@@ -100,19 +100,15 @@ Now that we have a set of examples, the next step is to preprocess those example
 
 #### Dropping Outliers
 
-Because there's no "right" way to compare FCNs, there's also no right way to detect outliers in our dataset. However, DeepFCN still provides a technique for doing so, `deepfcn.data.drop_outliers`:
+Because there's no standard way to compare FCNs, there's also no standard way to detect outliers in our dataset. Most approaches to graph outlier detection involve a neural network approach, but DeepFCN provides another technique for dropping outliers, `deepfcn.data.drop_outliers`:
 
 ```python
 from deepfcn.data import drop_outliers
 
-drop_outliers(examples, cutoff=0.05)
+examples = drop_outliers(examples, cutoff=0.05)
 ```
 
-This function does the following:
-
-1. Creates a vector representation of each example by averaging the node features and concatenating that with the mean of the edge features
-2. Calculates the [Mahalanobis distance](https://en.wikipedia.org/wiki/Mahalanobis_distance) between each vector and the other example vectors
-3. Uses a [Chi-Squared distribution](https://en.wikipedia.org/wiki/Chi-squared_distribution) to remove examples with distances outside a cutoff threshold (e.g. p < 0.05)
+This function uses the [outgraph package](https://github.com/shobrook/outgraph) to detect outliers based on their [Mahalanobis distance](https://en.wikipedia.org/wiki/Mahalanobis_distance) from the distribution of examples in the dataset.
 
 #### Dropping Edges
 
@@ -121,23 +117,21 @@ Within a FCN, there may be weak edges that represent noise rather than connectiv
 ```python
 from deepfcn.data import drop_weak_edges
 
-drop_weak_edges(examples, cutoff=0.10)
+examples = drop_weak_edges(examples, cutoff=0.10)
 ```
 
 Note that since some functional connectivity measures, such as correlation, are such that negative values are just as meaningful as positive values, only the absolute value is used –– e.g. a connectivity of `-0.5` is considered stronger than `0.3`.
 
-<!--TODO: Add a feature_index parameter that lets you specify which feature to use as a connectivity measure-->
+<!--#### TODO: Normalizing Features-->
 
-<!--#### Normalizing Features-->
-
-<!--#### Class Balancing-->
+<!--#### TODO: Class Balancing-->
 
 ### Preparing the GNN
 
 Now that we've prepared our dataset, the next step is to create a GNN. This only takes one line of code to do:
 
 ```python
-from deepfcn.gnn import create_gnn
+from deepfcn.model import create_gnn
 
 gnn = create_gnn(examples)
 ```
