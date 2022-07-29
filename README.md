@@ -2,7 +2,7 @@
 
 DeepFCN is a deep learning tool for predicting individual differences (e.g. classifying subjects with vs. without autism) from [functional connectivity networks (FCNs)](https://www.sciencedirect.com/topics/medicine-and-dentistry/functional-connectivity).
 
-It employs a Graph Neural Network (GNN) as a predictive model and offers control over every step in the deep learning pipeline, from feature extraction to designing and training the GNN. All you need is a labeled fMRI dataset to get started.
+It employs a [Graph Neural Network (GNN)](https://en.wikipedia.org/wiki/Graph_neural_network) as a predictive model and offers control over every step in the deep learning pipeline, from feature extraction to designing and training the GNN. All you need is a labeled fMRI dataset to get started.
 
 <img src="pipeline.png" />
 
@@ -110,17 +110,19 @@ examples = drop_outliers(examples, cutoff=0.05)
 
 This function uses the [outgraph package](https://github.com/shobrook/outgraph) to detect outliers based on their [Mahalanobis distance](https://en.wikipedia.org/wiki/Mahalanobis_distance) from the distribution of examples in the dataset.
 
-#### Dropping Edges
+#### Dropping Weak Connections
 
-Within a FCN, there may be weak edges that represent noise rather than connectivity, and dropping them can improve performance of the GNN. `deepfcn.data.drop_weak_edges` allows you to identify such edges and drop the ones below a connectivity threshold. If there are multiple connectivity measures associated with an edge, then only the first one is compared against the threshold. In our example, we'll drop the weakest **10%** of edges from each example based on their correlation:
+Within a FCN, there may be weak edges that represent noise rather than connectivity, and dropping them can improve performance of the GNN. `deepfcn.data.drop_weak_connections` allows you to identify such edges and drop the ones below a connectivity threshold. If there are multiple connectivity measures associated with an edge, then only the first one is compared against the threshold. In our example, we'll drop the weakest **10%** of edges from each example based on their correlation:
 
 ```python
-from deepfcn.data import drop_weak_edges
+from deepfcn.data import drop_weak_connections
 
-examples = drop_weak_edges(examples, cutoff=0.10)
+examples = drop_weak_connections(examples, cutoff=0.10)
 ```
 
 Note that since some functional connectivity measures, such as correlation, are such that negative values are just as meaningful as positive values, only the absolute value is used –– e.g. a connectivity of `-0.5` is considered stronger than `0.3`.
+
+Also note that only the first FC feature is used in this procedure.
 
 <!--#### TODO: Normalizing Features-->
 
@@ -149,8 +151,6 @@ By default, this function will autoconfigure the GNN parameters based on the num
 9. **`output_nn_kwargs` _(dict)_:** TODO
 
 These are all _parameters_ in the `deepfcn.gnn.create_gnn` function.
-
-<!--TODO: Hypersearch-->
 
 ### Training and Testing the GNN
 
