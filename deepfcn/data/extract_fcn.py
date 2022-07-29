@@ -50,6 +50,8 @@ def _generate_matrix_indices(num_rois, num_features):
 def extract_fcn(signals, feature_names=["correlation"]):
     """
     Extracts a functional connectivity network (FCN) from BOLD signals. The FCN
+    is a multi-edge graph, where each edge represents a connectivity measure
+    (i.e. feature).
 
     Parameters
     ----------
